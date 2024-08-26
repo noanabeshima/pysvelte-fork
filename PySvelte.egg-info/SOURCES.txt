@@ -1,0 +1,16 @@
+LICENSE
+README.md
+setup.py
+PySvelte.egg-info/PKG-INFO
+PySvelte.egg-info/SOURCES.txt
+PySvelte.egg-info/dependency_links.txt
+PySvelte.egg-info/requires.txt
+PySvelte.egg-info/top_level.txt
+pysvelte/ExtJsonEncoder.py
+pysvelte/SvelteComponent.py
+pysvelte/__init__.py
+pysvelte/config.py
+pysvelte/html.py
+pysvelte/javascript.py
+pysvelte/publish.py
+pysvelte/vis_paths.py
