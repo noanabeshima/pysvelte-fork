@@ -22,7 +22,9 @@
 		return d.toFixed(2);
 	}
 
-    
+    function noSpaceToRight(tokens, index) {
+        return index < tokens.length - 1 && tokens[index + 1][0] !== '⋅';
+    }
 
     let zipped = zip(tokens, weights)
 
@@ -41,9 +43,13 @@
     <h3 class="title">{title}</h3>
     <div class="doc {theme}">
         {#each zipped as [tok, weight], i}
-            <span class={"token"+ (tok[0] !== '⋅' ? " noLeadingSpaceTok" : "") + (i==highlight_index ? " highlighted" : "")} style="{getStyle(weight)}">{tok}
-                <span class="hovertext">{nice(weight)}</span>
-            </span>
+            <span class={[
+                        "token",
+                        tok[0] !== '⋅' ? " noLeadingSpaceTok" : "",
+                        i==highlight_index ? " highlighted" : "",
+                        noSpaceToRight(tokens, i) ? "noSpaceToRight": ""
+                    ].filter(Boolean).join(" ")}
+                    style="{getStyle(weight)}">{tok}<span class="hovertext">{nice(weight)}</span></span>
         {/each}
     </div>
 </main>
@@ -55,20 +61,30 @@
         padding: 0rem;
         margin: 0.2rem;
     }
+    
     .token {
         border:0px solid currentColor;
 
         padding:0px;
-        font-size: larger;
+        /* font-size: larger; */
         position: relative;
         cursor: default;
-        padding-right: -0.2rem;
+        padding: 0rem;
+        margin: 0rem;
+        /* margin-left: .05rem; */
+        /* margin-right: .05rem; */
+        display: inline-block;
+        vertical-align: top;
+        white-space: pre-wrap;
+        /* margin-right: -.2rem; */
+
+        padding-left: 0rem;
+        padding-right: .12rem;
     }
 
     .token:first-child {
         border-left: 0 none;
     }
-
 
     
     .token:hover {
@@ -78,6 +94,11 @@
     .noLeadingSpaceTok {
         border-left: 1px solid currentColor;
         border-right: 1px solid currentColor;
+        padding-left: .06rem;
+    }
+
+    .noSpaceToRight {
+        padding-right: .06rem;
     }
 
     .noLeadingSpaceTok + .noLeadingSpaceTok {
@@ -99,6 +120,8 @@
         color: black;
         margin-top: -.5rem;
         padding: .2rem;
+        white-space: nowrap;
+        pointer-events: none;
     }
 
     .token:hover .hovertext {

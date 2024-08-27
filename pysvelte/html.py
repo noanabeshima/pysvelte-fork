@@ -101,20 +101,34 @@ class Html:
             description_meta_line = f'<meta name="description" content="{description}">'
         else:
             description_meta_line = ""
+        # return f"""
+        # <!doctype html>
+
+        # <html lang="en">
+        # <head>
+        #     <meta charset="utf-8">
+        #     <title>{self.title or ""}</title>
+        #     {description_meta_line}
+        #     {get_script_tags(self.script_paths, dev_host=dev_host)}
+        #     {self.extra_head_content}
+        #      <style>{theme_css.get(self.theme, 'light')}</style>
+        # </head>
+        # <body>
+        #     {top_html}
+        #     {self.html_str()}
+        # </body>
+        # </html>
+        # """
         return f"""
         <!doctype html>
 
         <html lang="en">
         <head>
             <meta charset="utf-8">
-            <title>{self.title or ""}</title>
-            {description_meta_line}
             {get_script_tags(self.script_paths, dev_host=dev_host)}
             {self.extra_head_content}
-             <style>{theme_css.get(self.theme, 'light')}</style>
         </head>
         <body>
-            {top_html}
             {self.html_str()}
         </body>
         </html>
