@@ -1,26 +1,33 @@
+<svelte:head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=Open+Sans:wght@433&display=swap" rel="stylesheet">
+</svelte:head>
+
 <script>
-    import MultiWeightedDoc from './MultiWeightedDoc.svelte'
+    import WeightedDoc from './WeightedDoc.svelte'
     import WeightedDocsControl from './components/WeightedDocsControl.svelte'
    
     export let docs;
-    export let acts;
-    export let weight_styles = [
-        [220, 13, 48],
-        [13, 220, 193],
-    ];
-    export let aggr_weights;
-
-
+    export let multi_acts;
+    let acts = multi_acts[0];
     // export let title='';
-    export let aggr='max';
+    export let aggr='signed_absmax';
     export let thresholdOrPercentile='threshold';
-    export let ordering = 'descend';
+    export let ordering = 'dynamic';
 
     export let theme = 'dark';
 
     if (theme !== 'dark' && theme !== 'light') {
         throw new Error('Invalid theme: ' + theme + '. Must be "dark" or "light".');
     }
+
+    // Replace spaces with '⋅' and newlines with '↵' in each string of docs
+    docs = docs.map(docList => 
+        docList.map(doc => 
+            doc.replace(/ /g, '⋅').replace(/\n/g, '↵')
+        )
+    );
 
     let decor = (v, i) => [v, i];          // set index to value
     let undecor = a => a[1];               // leave only index
@@ -49,29 +56,29 @@
     let aggrPerms = {}
 
 
-    aggrs['max'] = aggr_weights.map((feats) => Math.max(...feats))
-    aggrs['min'] = aggr_weights.map((feats) => Math.min(...feats))
-    aggrs['mean'] = aggr_weights.map((feats) => feats.reduce((a, b) => a + b, 0) / feats.length)
-    aggrs['absmax'] = aggr_weights.map((feats) => {
+    aggrs['max'] = acts.map((feats) => Math.max(...feats))
+    aggrs['min'] = acts.map((feats) => Math.min(...feats))
+    aggrs['mean'] = acts.map((feats) => feats.reduce((a, b) => a + b, 0) / feats.length)
+    aggrs['absmax'] = acts.map((feats) => {
             let absfeats = feats.map((feat) => Math.abs(feat))
             return Math.max(...absfeats)
         })
-    aggrs['signed_absmax'] = aggr_weights.map((feats) => {
+    aggrs['signed_absmax'] = acts.map((feats) => {
         let absfeats = feats.map((feat) => Math.abs(feat))
         let idx = absfeats.indexOf(Math.max(...absfeats))
         return feats[idx]
     })
-    aggrs['absmean'] = aggr_weights.map((feats) => {
+    aggrs['absmean'] = acts.map((feats) => {
         let absfeats = feats.map((feat) => Math.abs(feat))
         return absfeats.reduce((a, b) => a + b, 0) / absfeats.length
     })
-    aggrs['signed_max_prod'] = aggr_weights.map((feats) => {
+    aggrs['signed_max_prod'] = acts.map((feats) => {
         // want the absmax of non-negative times the absmax of negative
         let pos_max = Math.max(Math.max(...feats), 0)
         let neg_max = -Math.min(Math.min(...feats), 0)
         return pos_max * neg_max
     })
-    aggrs['signed_mean_prod'] = aggr_weights.map((feats) => {
+    aggrs['signed_mean_prod'] = acts.map((feats) => {
         // let mean = feats.reduce((a, b) => a + b, 0)
         let pos_mean = feats.reduce((a, b) => a + Math.max(b, 0), 0)
         let neg_mean = -feats.reduce((a, b) => a + Math.min(b, 0), 0)
@@ -186,8 +193,12 @@
     <WeightedDocsControl thresholdMax={thresholdMax} thresholdMin={thresholdMin} bind:start={start} bind:end={end} bind:thresholdOrPercentile={thresholdOrPercentile} bind:aggregation={aggr} bind:ordering={ordering} resampleDocs={resampleDocs} theme={theme}/>
     <div class="docs">
         {#each renderedDocIndices as i}
-            <div class="doc">
-                <MultiWeightedDoc tokens={docs[i]} weights={acts[i]} weight_styles={weight_styles} theme={theme}/>
+            <div class="doc-row">
+                {#each multi_acts as single_acts, j}
+                    <div class="doc">
+                        <WeightedDoc tokens={docs[i]} weights={single_acts[i]}/>
+                    </div>
+                {/each}
             </div>
         {/each}
     </div>
@@ -195,7 +206,9 @@
 
 <style>
     main {
-        font: sans-serif;
+        font-family: 'IBM Plex Mono', monospace;
+        font-weight: 420;
+        font-style: normal;
     }
 
     .dark {
@@ -218,6 +231,20 @@
         margin-top: 0.4rem;
         padding-top: 0rem;
         margin-bottom: 1rem;
+    }
+
+    .doc-row {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-start;
+        align-items: flex-start;
+    }
+
+    .doc {
+        margin-left: 0.3rem;
+        margin-right: .3rem;
+        margin-bottom: 0.2rem;
+        flex: 1;
     }
 
 </style>
