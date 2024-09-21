@@ -7,9 +7,27 @@
     export let tokens;
     export let weights;
 
-    export let theme = '';
+    export let theme = 'dark';
 
+    
     export let highlight_index = -1;
+
+    export let dynamic_highlight = false;
+
+    // Add this function to handle mouse enter event
+    function handleMouseEnter(index) {
+        if (dynamic_highlight) {
+            highlight_index = index;
+        }
+    }
+
+    // Add this function to handle mouse leave event
+    function handleMouseLeave() {
+        if (dynamic_highlight) {
+            highlight_index = -1;
+        }
+    }
+
 
     //make sure theme is dark, light, or empty
     if (theme !== 'dark' && theme !== 'light' && theme !== '') {
@@ -36,47 +54,81 @@
         }
     }
 
+    function copyDocumentText(event) {
+        if (event.metaKey || event.ctrlKey) {
+            event.preventDefault();
+            let textToCopy;
+            if (highlight_index !== -1) {
+                textToCopy = tokens.slice(0, highlight_index + 1).join('').replace(/⋅/g, ' ').replace(/↵/g, '\n');
+            } else {
+                textToCopy = tokens.join('').replace(/⋅/g, ' ').replace(/↵/g, '\n');
+            }
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                console.log('Document text copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        }
+    }
+
+    function handleKeyDown(event) {
+        // if (event.key === 'Enter' || event.key === ' ') {
+        //     copyDocumentText(event);
+        // }
+    }
+
     $: zipped = zip(tokens, weights)
 </script>
 
 <main>
-    <h3 class="title">{title}</h3>
-    <div class="doc {theme}">
-        {#each zipped as [tok, weight], i}
-            <span class={[
-                        "token",
-                        tok[0] !== '⋅' ? " noLeadingSpaceTok" : "",
-                        i==highlight_index ? " highlighted" : "",
-                        noSpaceToRight(tokens, i) ? "noSpaceToRight": ""
-                    ].filter(Boolean).join(" ")}
-                    style="{getStyle(weight)}">{tok}<span class="hovertext">{nice(weight)}</span></span>
-        {/each}
+    <div class="doc-container {theme}">
+        <h3 class="title">{title}</h3>
+        <div class="doc-content" on:click={(event) => event.ctrlKey || event.metaKey ? copyDocumentText(event) : null}>
+            {#each zipped as [tok, weight], i}
+                <span class={[
+                            "token",
+                            theme,
+                            tok[0] !== '⋅' ? " noLeadingSpaceTok" : "",
+                            i==highlight_index ? " highlighted" : "",
+                            noSpaceToRight(tokens, i) ? "noSpaceToRight": ""
+                        ].filter(Boolean).join(" ")}
+                        style="{getStyle(weight)}"
+                        on:mouseenter={()=> handleMouseEnter(i)}
+                        on:mouseleave={handleMouseLeave}
+                        >{tok}<span class="hovertext">{nice(weight)}</span></span>
+            {/each}
+        </div>
     </div>
 </main>
 
 <style>
+    .doc-container {
+        position: relative;
+    }
     
     .title {
-        /* font-size: 1rem; */
         padding: 0rem;
-        margin: 0.2rem;
+        margin: 0.2rem 0;
+    }
+    
+    .doc-content {
+        position: relative;
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.5rem;
+        cursor: pointer;
     }
     
     .token {
         border:0px solid currentColor;
 
         padding:0px;
-        /* font-size: larger; */
         position: relative;
         cursor: default;
         padding: 0rem;
         margin: 0rem;
-        /* margin-left: .05rem; */
-        /* margin-right: .05rem; */
         display: inline-block;
         vertical-align: top;
         white-space: pre-wrap;
-        /* margin-right: -.2rem; */
 
         padding-left: 0rem;
         padding-right: .12rem;
@@ -124,7 +176,8 @@
         pointer-events: none;
     }
 
-    .token:hover .hovertext {
+    .token:hover .hovertext,
+    .token.highlighted .hovertext {
         visibility: visible;
         display: block;
     }
@@ -138,7 +191,11 @@
         color: black;
     }
 
-    .highlighted.highlighted {
-        border: 2px solid currentColor;
+    .dark .highlighted {
+        box-shadow: 0 0 0 2px white;
     }
+    .light .highlighted {
+        box-shadow: 0 0 0 2px black;
+    }
+
 </style>

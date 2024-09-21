@@ -11,7 +11,6 @@
     export let show_tokens = true;
     // export let blank_color = "#FFF";
 
-
     export let focus_token_lock = { value: undefined, mode: "soft" };
     $: focus_token = focus_token_lock.value;
 
@@ -300,7 +299,7 @@
         grid-template-columns: [left] min-content [right] minmax(min-content, 800px) [end];
         gap: 12px;
         margin-top: 24px;
-        color: white;
+        color: black;
     }
     .tokens {
         grid-row: main;

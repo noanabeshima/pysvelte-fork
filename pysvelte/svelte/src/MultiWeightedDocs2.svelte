@@ -1,0 +1,289 @@
+<svelte:head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=Open+Sans:wght@433&display=swap" rel="stylesheet">
+</svelte:head>
+
+<script>
+    import WeightedDoc from './WeightedDoc.svelte'
+    import WeightedDocsControl from './components/WeightedDocsControl.svelte'
+   
+    export let docs;
+    export let acts;
+
+    acts = Array.isArray(acts) && !Array.isArray(acts[0][0]) ? [acts] : acts;
+    docs = Array.isArray(docs) && !Array.isArray(docs[0][0]) ? [docs] : docs;
+
+    let numDataSources = Math.max(acts.length, docs.length);
+
+    let aggr_acts = acts[0];
+
+    // export let title='';
+    export let aggr='signed_absmax';
+    export let thresholdOrPercentile='threshold';
+    export let ordering = 'dynamic';
+
+    export let theme = 'dark';
+
+    if (theme !== 'dark' && theme !== 'light') {
+        throw new Error('Invalid theme: ' + theme + '. Must be "dark" or "light".');
+    }
+
+    // Replace spaces with '⋅' and newlines with '↵' in each string of docs
+    docs = docs.map(docMatrix => 
+        docMatrix.map(docList => 
+            docList.map(doc => 
+                doc.replace(/ /g, '⋅').replace(/\n/g, '↵')
+            )
+        )
+    );
+
+    export let titles=[];
+
+    let highlight_index=-1
+    
+
+    let decor = (v, i) => [v, i];          // set index to value
+    let undecor = a => a[1];               // leave only index
+    // let argsort = arr => arr.map(decor).sort().map(undecor);
+    let argsort = (arr, compareFunc) => {
+        // Decorate: create an array of {value, index} pairs
+        const decor = (value, index) => ({ value, index });
+
+        // Undecorate: extract the original index after sorting
+        const undecor = item => item.index;
+
+        // If no comparison function is provided, use the default ascending order comparison
+        const defaultCompare = (a, b) => {
+            return (a-b);
+        };
+
+        // Use the provided comparison function or the default one if none is provided
+        const effectiveCompare = compareFunc || defaultCompare;
+
+        // Map the original array to an array of {value, index} pairs, sort them, and then map back to their original indices
+        return arr.map(decor).sort((a, b) => effectiveCompare(a.value, b.value)).map(undecor);
+    };
+
+    
+    let aggrs = {}
+    let aggrPerms = {}
+
+
+    aggrs['max'] = aggr_acts.map((feats) => Math.max(...feats))
+    aggrs['min'] = aggr_acts.map((feats) => Math.min(...feats))
+    aggrs['mean'] = aggr_acts.map((feats) => feats.reduce((a, b) => a + b, 0) / feats.length)
+    aggrs['absmax'] = aggr_acts.map((feats) => {
+            let absfeats = feats.map((feat) => Math.abs(feat))
+            return Math.max(...absfeats)
+        })
+    aggrs['signed_absmax'] = aggr_acts.map((feats) => {
+        let absfeats = feats.map((feat) => Math.abs(feat))
+        let idx = absfeats.indexOf(Math.max(...absfeats))
+        return feats[idx]
+    })
+    aggrs['absmean'] = aggr_acts.map((feats) => {
+        let absfeats = feats.map((feat) => Math.abs(feat))
+        return absfeats.reduce((a, b) => a + b, 0) / absfeats.length
+    })
+    aggrs['signed_max_prod'] = aggr_acts.map((feats) => {
+        // want the absmax of non-negative times the absmax of negative
+        let pos_max = Math.max(Math.max(...feats), 0)
+        let neg_max = -Math.min(Math.min(...feats), 0)
+        return pos_max * neg_max
+    })
+    aggrs['signed_mean_prod'] = aggr_acts.map((feats) => {
+        // let mean = feats.reduce((a, b) => a + b, 0)
+        let pos_mean = feats.reduce((a, b) => a + Math.max(b, 0), 0)
+        let neg_mean = -feats.reduce((a, b) => a + Math.min(b, 0), 0)
+        return pos_mean * neg_mean
+    })
+
+    for (let key in aggrs) {
+        aggrPerms[key] = argsort(aggrs[key])
+        aggrs[key] = aggrPerms[key].map(i => aggrs[key][i])
+    }
+
+
+    function sampleDocIdx(rangeStart, rangeEnd, count) {
+        // Create an array with numbers from rangeStart to rangeEnd
+        let numbers = [];
+        for (let i = rangeStart; i < rangeEnd; i++) {
+            numbers.push(i);
+        }
+
+        // Shuffle the array
+        for (let i = numbers.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [numbers[i], numbers[j]] = [numbers[j], numbers[i]]; // Swap elements
+        }
+
+        // Return the first 'count' elements
+        return numbers.slice(0, count);
+    }
+
+    // export let thresholdMin = Math.min(...aggr_acts.map(r=>Math.min(...r)))-1
+    // export let thresholdMax = Math.max(...aggr_acts.map(r=>Math.max(...r)))*2
+    let thresholdMin=0
+    let thresholdMax=1
+
+    export let start = thresholdMin;
+    export let end = thresholdMax;
+    
+
+    export let k = 10;
+
+    let getDocBounds = () => {
+        let startBound, endBound;
+        if (thresholdOrPercentile == 'threshold') {
+            console.log('threshold branch')
+            // get start bound
+            for (var i = 0; i <= Math.max(docs[0].length-k, 0); i++) {
+                if (aggrs[aggr][i] >= start) {
+                    break; 
+                }
+            }
+            startBound = i;
+
+            // get end bound
+            for (var j = aggrs[aggr].length; j >= startBound+k; j--) {
+                if (aggrs[aggr][j-1] <= end && aggrs[aggr][j-1] >= start) {
+                    break;
+                }
+            }
+            endBound = j;
+        } else {
+            // percentile
+            startBound = Math.min(Math.floor(aggrs[aggr].length * start), aggrs[aggr].length-k);
+            endBound = Math.max(Math.ceil(aggrs[aggr].length * end), k)
+            console.log(startBound, endBound)
+        }
+        
+        return [startBound, endBound];
+    };
+    
+
+    let getDocIndices = (start, end) => {
+        // given a start/end percentile or threshold, get the sampled docs in the rendered order (I think?)
+        let [startBound, endBound] = getDocBounds()
+
+        // just sample randomly from the range
+        let indices = sampleDocIdx(startBound, endBound, k)
+
+        if (ordering == 'ascend') {
+            indices.sort((a,b) => a-b)
+        } else if (ordering == 'descend') {
+            indices.sort((a,b) => b-a)
+        } else if (ordering == 'dynamic') {
+            indices.sort((a,b) => Math.abs(aggrs[aggr][b]) - Math.abs(aggrs[aggr][a]))
+        } else {
+            // nothing
+        }
+        return indices.map(i => aggrPerms[aggr][i])
+    }
+
+    let renderedDocIndices;
+    let resampleDocs = () => {
+        if (thresholdOrPercentile == 'percentile') {
+            start = Math.max(start, 0)
+            end = Math.min(1, end)
+        }
+        renderedDocIndices = getDocIndices(start, end)
+    }
+
+    
+    $: {
+        thresholdOrPercentile; start; end; ordering;
+        resampleDocs(start, end)
+    }
+
+    $: {
+        thresholdMin = Math.min(...aggrs[aggr])
+        thresholdMax = Math.max(...aggrs[aggr])//[docs[0].length - 1]
+    }
+</script>
+
+<main class={theme}>
+    <WeightedDocsControl thresholdMax={thresholdMax} thresholdMin={thresholdMin} bind:start={start} bind:end={end} bind:thresholdOrPercentile={thresholdOrPercentile} bind:aggregation={aggr} bind:ordering={ordering} resampleDocs={resampleDocs} theme={theme}/>
+    <div class="docs">
+        {#if titles.length > 0}
+            <div class="doc-row header-row">
+                {#each Array(numDataSources) as _, j}
+                    <div class="doc-title">{titles[j % titles.length]}</div>
+                {/each}
+            </div>
+        {/if}
+
+        {#each renderedDocIndices as i}
+            <div class="doc-row">
+                {#each Array(numDataSources) as _, j}
+                    <div class="doc">
+                        <WeightedDoc 
+                            tokens={docs[j % docs.length][i]} 
+                            weights={acts[j % acts.length][i]}
+                            dynamic_highlight={true}
+                            bind:highlight_index={highlight_index}
+                        />
+                    </div>
+                {/each}
+            </div>
+        {/each}
+    </div>
+</main>
+
+<style>
+    main {
+        font-family: 'IBM Plex Mono', monospace;
+        font-weight: 420;
+        font-style: normal;
+    }
+
+    .dark {
+        background-color: black;
+        color: white;
+    }
+
+    .light {
+        background-color: white;
+        color: black;
+    }
+
+    .doc {
+        margin-left: 1rem;
+        margin-right: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .docs {
+        margin-top: 0.4rem;
+        padding-top: 0rem;
+        margin-bottom: 1rem;
+    }
+
+    .doc-row {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-start;
+        align-items: flex-start;
+    }
+
+    .doc {
+        margin-left: 0.3rem;
+        margin-right: .3rem;
+        margin-bottom: 0.2rem;
+        flex: 1;
+    }
+
+    .header-row {
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+
+    .doc-title {
+        flex: 1;
+        text-align: left;
+        padding: 0.1rem;
+        padding-left: 1rem;
+    }
+
+</style>
